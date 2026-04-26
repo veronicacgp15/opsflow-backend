@@ -1,0 +1,11 @@
+# Ignorar carpetas de compilación de Java
+**/target/
+**/*.class
+
+# Ignorar archivos del IDE
+.idea/
+*.iml
+.vscode/
+
+# Ignorar archivos de configuración local
+.env

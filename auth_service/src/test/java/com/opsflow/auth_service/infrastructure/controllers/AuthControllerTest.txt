@@ -1,0 +1,139 @@
+package com.opsflow.auth_service.infrastructure.controllers;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.opsflow.auth_service.application.dtos.request.LoginRequest;
+import com.opsflow.auth_service.application.dtos.request.SignupRequest;
+import com.opsflow.auth_service.application.services.RefreshTokenService;
+import com.opsflow.auth_service.application.services.UserService;
+import com.opsflow.auth_service.domain.models.UserDomain;
+import com.opsflow.auth_service.infrastructure.entities.RefreshToken;
+import com.opsflow.auth_service.infrastructure.security.JwtUtils;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.http.MediaType;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.web.servlet.MockMvc;
+
+import java.util.Collections;
+import java.util.Optional;
+import java.util.Set;
+
+import static com.opsflow.auth_service.domain.constants.AuthConstants.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+
+@SpringBootTest
+@AutoConfigureMockMvc(addFilters = false)
+class AuthControllerTest {
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @MockitoBean
+    private AuthenticationManager authenticationManager;
+
+    @MockitoBean
+    private UserService userService;
+
+    @MockitoBean
+    private RefreshTokenService refreshTokenService;
+
+    @MockitoBean
+    private JwtUtils jwtUtils;
+
+    @MockitoBean
+    private PasswordEncoder passwordEncoder;
+
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
+    }
+
+    @Test
+    @DisplayName("Login exitoso debe retornar JWT y Refresh Token")
+    void loginShouldReturnJwtAndRefreshToken() throws Exception {
+        // GIVEN
+        LoginRequest loginRequest = new LoginRequest("admin_user", "password123");
+
+        User userPrincipal = new User("admin_user", "password123",
+                Collections.singletonList(new SimpleGrantedAuthority(ROLE_USER)));
+
+        Authentication authentication = new UsernamePasswordAuthenticationToken(
+                userPrincipal, null, userPrincipal.getAuthorities());
+
+        UserDomain userDomain = new UserDomain();
+        userDomain.setId(1L);
+        userDomain.setEmail("admin@opsflow.com");
+        userDomain.setUsername("admin_user");
+
+        RefreshToken refreshToken = new RefreshToken();
+        refreshToken.setId("uuid-token-123");
+
+        when(authenticationManager.authenticate(any())).thenReturn(authentication);
+        when(jwtUtils.generateAccessToken(any())).thenReturn("fake-jwt-token");
+        when(refreshTokenService.createRefreshToken("admin_user")).thenReturn(refreshToken);
+        when(userService.findByUsername("admin_user")).thenReturn(Optional.of(userDomain));
+
+        // WHEN & THEN
+        mockMvc.perform(post("/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(loginRequest)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.token").value("fake-jwt-token"))
+                .andExpect(jsonPath("$.refreshToken").value("uuid-token-123"))
+                .andExpect(jsonPath("$.username").value("admin_user"))
+                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.email").value("admin@opsflow.com"));
+    }
+
+    @Test
+    @DisplayName("Registro exitoso debe retornar mensaje de éxito")
+    void registerShouldCreateUser() throws Exception {
+        // GIVEN
+        SignupRequest signupRequest = new SignupRequest(
+                "newuser", "new@opsflow.com", "password123", "New", "User", Set.of(ROLE_USER), 1L
+        );
+
+        when(userService.findByUsername("newuser")).thenReturn(Optional.empty());
+        when(userService.save(any(UserDomain.class))).thenReturn(new UserDomain());
+
+        // WHEN & THEN
+        mockMvc.perform(post("/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(signupRequest)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value(USER_REGISTERED_SUCCESSFULLY));
+    }
+
+    @Test
+    @DisplayName("Registro debe fallar si el nombre de usuario ya existe")
+    void registerShouldFailIfUsernameExists() throws Exception {
+        // GIVEN
+        SignupRequest signupRequest = new SignupRequest(
+                "newuser", "new@opsflow.com", "password123", "New", "User", Set.of(ROLE_USER), 1L
+        );
+        when(userService.findByUsername("newuser")).thenReturn(Optional.of(new UserDomain()));
+
+        // WHEN & THEN
+        mockMvc.perform(post("/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(signupRequest)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(ERROR_USERNAME_IS_ALREADY_TAKEN));
+    }
+}

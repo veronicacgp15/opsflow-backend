@@ -1,0 +1,147 @@
+package com.opsflow.org_service.infrastructure.controllers;
+
+import com.opsflow.org_service.application.dtos.MessageResponse;
+import com.opsflow.org_service.application.dtos.OrganizationResponse;
+import com.opsflow.org_service.application.dtos.request.ChangeRoleRequest;
+import com.opsflow.org_service.application.dtos.request.CreateRoleRequest;
+import com.opsflow.org_service.application.dtos.request.OrganizationRequest;
+import com.opsflow.org_service.domain.ports.in.OrganizationServicePort;
+import com.opsflow.org_service.infrastructure.adapters.external.AuthServiceClient;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+class OrganizationControllerTest {
+
+    @Mock
+    private OrganizationServicePort organizationServicePort;
+
+    @Mock
+    private AuthServiceClient authServiceClient;
+
+    @InjectMocks
+    private OrganizationController organizationController;
+
+    private OrganizationRequest dummyRequest;
+    private OrganizationResponse dummyResponse;
+
+    @BeforeEach
+    void setUp() {
+        dummyRequest = new OrganizationRequest("OpsFlow", "123", "Calle", "email@test.com", "555",10);
+        dummyResponse = new OrganizationResponse(1L, "OpsFlow", "123", "Calle", "email@test.com", "555", true, LocalDateTime.now());
+    }
+
+    @Test
+    @DisplayName("Debe crear una organización y retornar 201 CREATED")
+    void createShouldReturnCreated() {
+        when(organizationServicePort.create(any(OrganizationRequest.class))).thenReturn(dummyResponse);
+
+        ResponseEntity<OrganizationResponse> response = organizationController.create(dummyRequest);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        assertThat(response.getBody()).isEqualTo(dummyResponse);
+        verify(organizationServicePort).create(dummyRequest);
+    }
+
+    @Test
+    @DisplayName("Debe retornar lista de organizaciones con 200 OK")
+    void findAllShouldReturnOk() {
+        when(organizationServicePort.findAll()).thenReturn(List.of(dummyResponse));
+
+        ResponseEntity<List<OrganizationResponse>> response = organizationController.findAll();
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).hasSize(1);
+        verify(organizationServicePort).findAll();
+    }
+
+    @Test
+    @DisplayName("Debe retornar organización por ID con 200 OK")
+    void findByIdShouldReturnOkIfPresent() {
+        when(organizationServicePort.findById(1L)).thenReturn(Optional.of(dummyResponse));
+
+        ResponseEntity<OrganizationResponse> response = organizationController.findById(1L);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isEqualTo(dummyResponse);
+        verify(organizationServicePort).findById(1L);
+    }
+
+    @Test
+    @DisplayName("Debe retornar 404 NOT FOUND si la organización no existe")
+    void findByIdShouldReturnNotFoundIfEmpty() {
+        when(organizationServicePort.findById(99L)).thenReturn(Optional.empty());
+
+        ResponseEntity<OrganizationResponse> response = organizationController.findById(99L);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        verify(organizationServicePort).findById(99L);
+    }
+
+    @Test
+    @DisplayName("Debe actualizar una organización y retornar 201 CREATED")
+    void updateShouldReturnCreatedIfPresent() {
+        when(organizationServicePort.update(eq(1L), any(OrganizationRequest.class))).thenReturn(Optional.of(dummyResponse));
+
+        ResponseEntity<OrganizationResponse> response = organizationController.update(1L, dummyRequest);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        assertThat(response.getBody()).isEqualTo(dummyResponse);
+        verify(organizationServicePort).update(1L, dummyRequest);
+    }
+
+    @Test
+    @DisplayName("Debe eliminar organización y retornar 200 OK con mensaje")
+    void deleteShouldReturnOkWithMessage() {
+        doNothing().when(organizationServicePort).delete(1L);
+
+        ResponseEntity<MessageResponse> response = organizationController.delete(1L);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().message()).contains("1");
+        verify(organizationServicePort).delete(1L);
+    }
+
+    @Test
+    @DisplayName("Debe crear un rol comunicándose con AuthServiceClient")
+    void createNewRoleShouldCallAuthServiceClient() {
+        CreateRoleRequest roleRequest = new CreateRoleRequest("NEW_ROLE");
+        ResponseEntity mockEntity = ResponseEntity.ok().build();
+        doReturn(mockEntity).when(authServiceClient).createRole(roleRequest);
+
+        ResponseEntity<?> response = organizationController.createNewRole(roleRequest);
+
+        assertThat(response).isEqualTo(mockEntity);
+        verify(authServiceClient).createRole(roleRequest);
+    }
+
+    @Test
+    @DisplayName("Debe cambiar el rol comunicándose con AuthServiceClient")
+    void changeUserRoleShouldCallAuthServiceClient() {
+        ChangeRoleRequest changeReq = new ChangeRoleRequest("NEW_ROLE");
+        ResponseEntity<MessageResponse> mockEntity = ResponseEntity.ok(new MessageResponse("Rol cambiado"));
+        when(authServiceClient.changeUserRole(10L, changeReq)).thenReturn(mockEntity);
+
+        ResponseEntity<MessageResponse> response = organizationController.changeUserRole(10L, changeReq);
+
+        assertThat(response).isEqualTo(mockEntity);
+        verify(authServiceClient).changeUserRole(10L, changeReq);
+    }
+}

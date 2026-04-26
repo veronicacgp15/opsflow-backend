@@ -1,0 +1,174 @@
+{
+  "info": {
+    "_postman_id": "f8c7f0d8-4b6f-4b91-9e37-opsflow-all-endpoints",
+    "name": "OpsFlow - Auth, Org, Document",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseAuth", "value": "http://localhost:8081" },
+    { "key": "baseOrg", "value": "http://localhost:8082" },
+    { "key": "baseDoc", "value": "http://localhost:8083" },
+    { "key": "accessToken", "value": "" },
+    { "key": "refreshToken", "value": "" },
+    { "key": "userId", "value": "1" },
+    { "key": "roleId", "value": "1" },
+    { "key": "orgId", "value": "1" },
+    { "key": "locationId", "value": "1" },
+    { "key": "documentId", "value": "1" }
+  ],
+  "item": [
+    {
+      "name": "Auth Service",
+      "item": [
+        {
+          "name": "Signup",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin\",\n  \"email\": \"admin@opsflow.com\",\n  \"name\": \"Admin\",\n  \"lastname\": \"Root\",\n  \"password\": \"Admin123*\"\n}"
+            },
+            "url": "{{baseAuth}}/auth/signup"
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "let jsonData = {};",
+                  "try { jsonData = pm.response.json(); } catch (e) {}",
+                  "if (jsonData.token) pm.collectionVariables.set('accessToken', jsonData.token);",
+                  "if (jsonData.refreshToken) pm.collectionVariables.set('refreshToken', jsonData.refreshToken);",
+                  "if (jsonData.id) pm.collectionVariables.set('userId', String(jsonData.id));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"Admin123*\"\n}"
+            },
+            "url": "{{baseAuth}}/auth/login"
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}" },
+            "url": "{{baseAuth}}/auth/refresh"
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "url": "{{baseAuth}}/auth/logout"
+          }
+        },
+        {
+          "name": "Generate Hash",
+          "request": {
+            "method": "GET",
+            "url": "{{baseAuth}}/auth/generate-hash?password=Admin123*"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Roles (Auth Service)",
+      "item": [
+        { "name": "Get Roles", "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseAuth}}/auth/roles" } },
+        { "name": "Get Role By ID", "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseAuth}}/auth/roles/{{roleId}}" } },
+        { "name": "Create Role", "request": { "method": "POST", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"name\": \"ROLE_MANAGER\"\n}" }, "url": "{{baseAuth}}/auth/roles/create" } },
+        { "name": "Update Role", "request": { "method": "PUT", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"name\": \"ROLE_MANAGER\"\n}" }, "url": "{{baseAuth}}/auth/roles/{{roleId}}" } },
+        { "name": "Delete Role", "request": { "method": "DELETE", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseAuth}}/auth/roles/{{roleId}}" } },
+        { "name": "Change User Role", "request": { "method": "PUT", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"roleName\": \"ROLE_MANAGER\"\n}" }, "url": "{{baseAuth}}/auth/roles/users/{{userId}}/change-role" } }
+      ]
+    },
+    {
+      "name": "Users (Auth Service)",
+      "item": [
+        { "name": "Get Users", "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseAuth}}/users" } },
+        { "name": "Get User By ID", "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseAuth}}/users/{{userId}}" } },
+        { "name": "Get My Organization Users", "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseAuth}}/users/my-organization" } },
+        { "name": "Create User", "request": { "method": "POST", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"username\": \"user1\",\n  \"email\": \"user1@opsflow.com\",\n  \"name\": \"User\",\n  \"lastname\": \"One\",\n  \"password\": \"User123*\",\n  \"roles\": [\"ROLE_USER\"],\n  \"organizationId\": {{orgId}}\n}" }, "url": "{{baseAuth}}/users" } },
+        { "name": "Update User", "request": { "method": "PUT", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"name\": \"User Updated\",\n  \"lastname\": \"One Updated\",\n  \"email\": \"user1.updated@opsflow.com\"\n}" }, "url": "{{baseAuth}}/users/{{userId}}" } },
+        { "name": "Update User Roles", "request": { "method": "PATCH", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "[\"ROLE_USER\"]" }, "url": "{{baseAuth}}/users/{{userId}}/roles" } },
+        { "name": "Deactivate User", "request": { "method": "PATCH", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseAuth}}/users/{{userId}}/deactivate" } },
+        { "name": "Revoke User Sessions", "request": { "method": "DELETE", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseAuth}}/users/{{userId}}/sessions" } },
+        { "name": "Change Password", "request": { "method": "PATCH", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"newPassword\": \"NewPass123*\"\n}" }, "url": "{{baseAuth}}/users/change-password" } }
+      ]
+    },
+    {
+      "name": "Organization Service",
+      "item": [
+        { "name": "Create Organization", "request": { "method": "POST", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"name\": \"OpsFlow Corp\",\n  \"description\": \"Main organization\"\n}" }, "url": "{{baseOrg}}/org/create" } },
+        { "name": "Get Organizations", "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseOrg}}/org" } },
+        { "name": "Get Organization By ID", "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseOrg}}/org/{{orgId}}" } },
+        { "name": "Update Organization", "request": { "method": "PUT", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"name\": \"OpsFlow Corp Updated\",\n  \"description\": \"Updated org\"\n}" }, "url": "{{baseOrg}}/org/{{orgId}}" } },
+        { "name": "Delete Organization", "request": { "method": "DELETE", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseOrg}}/org/{{orgId}}" } }
+      ]
+    },
+    {
+      "name": "Location Service",
+      "item": [
+        { "name": "Create Location", "request": { "method": "POST", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"name\": \"Main HQ\",\n  \"address\": \"Street 123\",\n  \"organizationId\": {{orgId}}\n}" }, "url": "{{baseOrg}}/org/locations/create" } },
+        { "name": "Get Locations", "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseOrg}}/org/locations" } },
+        { "name": "Get Locations By Org", "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseOrg}}/org/locations/by-org/{{orgId}}" } },
+        { "name": "Get Location By ID", "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseOrg}}/org/locations/{{locationId}}" } },
+        { "name": "Update Location", "request": { "method": "PUT", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"name\": \"Main HQ Updated\",\n  \"address\": \"Street 123 Updated\",\n  \"organizationId\": {{orgId}}\n}" }, "url": "{{baseOrg}}/org/locations/{{locationId}}" } },
+        { "name": "Delete Location", "request": { "method": "DELETE", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseOrg}}/org/locations/{{locationId}}" } }
+      ]
+    },
+    {
+      "name": "Document Service",
+      "item": [
+        {
+          "name": "Create Document",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "data", "value": "{\"title\":\"Contrato\",\"description\":\"Documento inicial\",\"organizationId\":1}", "type": "text" },
+                { "key": "file", "type": "file", "src": "" }
+              ]
+            },
+            "url": "{{baseDoc}}/documents/create"
+          }
+        },
+        { "name": "Get Documents", "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseDoc}}/documents" } },
+        { "name": "Get Document By ID", "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseDoc}}/documents/{{documentId}}" } },
+        { "name": "Update Document", "request": { "method": "PUT", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"title\": \"Contrato v2\",\n  \"description\": \"Metadata actualizada\"\n}" }, "url": "{{baseDoc}}/documents/{{documentId}}" } },
+        { "name": "Delete Document", "request": { "method": "DELETE", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseDoc}}/documents/{{documentId}}" } },
+        {
+          "name": "Add Document Version",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "file", "type": "file", "src": "" }
+              ]
+            },
+            "url": "{{baseDoc}}/documents/add-version/{{documentId}}"
+          }
+        },
+        { "name": "Force Document State", "request": { "method": "PATCH", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseDoc}}/documents/{{documentId}}/force-state?state=APPROVED" } }
+      ]
+    }
+  ]
+}

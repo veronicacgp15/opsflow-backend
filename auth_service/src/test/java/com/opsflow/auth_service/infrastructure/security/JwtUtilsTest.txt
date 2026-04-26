@@ -1,0 +1,119 @@
+package com.opsflow.auth_service.infrastructure.security;
+
+import io.jsonwebtoken.Claims;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.test.util.ReflectionTestUtils;
+
+import java.util.Collections;
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(MockitoExtension.class)
+class JwtUtilsTest {
+
+    @InjectMocks
+    private JwtUtils jwtUtils;
+
+    @Mock
+    private Authentication authentication;
+
+    // IMPORTANTE: Como tu JwtUtils usa Decoders.BASE64.decode(secret),
+    // el secreto del test DEBE ser un string codificado en Base64.
+    // Este string es "opsflow-backend-super-secret-key-for-jwt-generation-2026" en Base64.
+    private final String SECRET = "b3BzZmxvdy1iYWNrZW5kLXN1cGVyLXNlY3JldC1rZXktZm9yLWp3dC1nZW5lcmF0aW9uLTIwMjY=";
+    private final long EXPIRATION = 3600000; // 1 hora en milisegundos
+
+    @BeforeEach
+    void setUp() {
+        ReflectionTestUtils.setField(jwtUtils, "secret", SECRET);
+        ReflectionTestUtils.setField(jwtUtils, "expiration", EXPIRATION);
+    }
+
+    @Test
+    @DisplayName("Debe generar un token de acceso válido con roles")
+    void shouldGenerateValidAccessToken() {
+        // GIVEN
+        String username = "tester";
+        List<SimpleGrantedAuthority> authorities = List.of(new SimpleGrantedAuthority("ROLE_ADMIN"));
+        UserDetails userPrincipal = new User(username, "password", authorities);
+
+        when(authentication.getPrincipal()).thenReturn(userPrincipal);
+
+        // WHEN
+        String token = jwtUtils.generateAccessToken(authentication);
+
+        // THEN
+        assertThat(token).isNotBlank();
+        assertThat(jwtUtils.validateAccessToken(token)).isTrue();
+        assertThat(jwtUtils.getUsernameFromToken(token)).isEqualTo(username);
+
+        // Verificamos que el claim "roles" se haya guardado correctamente
+        @SuppressWarnings("unchecked")
+        List<String> roles = jwtUtils.getClaim(token, claims -> claims.get("roles", List.class));
+        assertThat(roles).containsExactly("ROLE_ADMIN");
+    }
+
+    @Test
+    @DisplayName("Debe retornar false al validar un token inválido o corrupto")
+    void shouldReturnFalseForInvalidToken() {
+        // GIVEN
+        String invalidToken = "ey-not-a-valid-token.signature.corrupt";
+
+        // WHEN
+        boolean isValid = jwtUtils.validateAccessToken(invalidToken);
+
+        // THEN
+        assertThat(isValid).isFalse();
+    }
+
+    @Test
+    @DisplayName("Debe validar que la fecha de expiración del token sea futura")
+    void shouldValidateTokenExpirationTime() {
+        // GIVEN
+        String username = "tester";
+        UserDetails userPrincipal = new User(username, "password", Collections.emptyList());
+        when(authentication.getPrincipal()).thenReturn(userPrincipal);
+
+        String token = jwtUtils.generateAccessToken(authentication);
+
+        // WHEN
+        java.util.Date expirationDate = jwtUtils.getClaim(token, Claims::getExpiration);
+
+        // THEN
+        assertThat(expirationDate).isAfter(new java.util.Date());
+    }
+
+    @Test
+    @DisplayName("Debe validar correctamente si el usuario tiene un rol específico (hasRole)")
+    void shouldCheckIfAuthenticationHasRole() {
+        // GIVEN
+        List<SimpleGrantedAuthority> authorities = List.of(
+                new SimpleGrantedAuthority("ROLE_MANAGER"),
+                new SimpleGrantedAuthority("USER")
+        );
+
+        // Usamos doReturn para evitar advertencias de tipado estricto con Mockito en listas
+        doReturn(authorities).when(authentication).getAuthorities();
+
+        // WHEN & THEN
+        assertThat(jwtUtils.hasRole(authentication, "MANAGER")).isTrue();
+        assertThat(jwtUtils.hasRole(authentication, "ROLE_MANAGER")).isTrue();
+        assertThat(jwtUtils.hasRole(authentication, "USER")).isTrue();
+
+        // Verificamos un rol que no tiene
+        assertThat(jwtUtils.hasRole(authentication, "ADMIN")).isFalse();
+    }
+}

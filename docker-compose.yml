@@ -1,0 +1,209 @@
+services:
+  # Base de Datos PostgreSQL
+  postgres-db:
+    image: postgres:15-alpine
+    container_name: opsflow-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 1234567890
+      POSTGRES_DB: db_opsflow
+    ports:
+      - "5434:5432"
+    volumes:
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d db_opsflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - opsflow-network
+
+  # Redis - Caché y Tokens
+  redis-cache:
+    image: redis:7-alpine
+    container_name: opsflow-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - opsflow-network
+
+  # RabbitMQ - Message Broker
+  rabbitmq-broker:
+    image: rabbitmq:3.12-management-alpine
+    container_name: opsflow-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_running"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    networks:
+      - opsflow-network
+
+  # Eureka Server
+  eureka-server:
+    build:
+      context: ./eureka_server
+    container_name: opsflow-eureka
+    ports:
+      - "8761:8761"
+    networks:
+      - opsflow-network
+
+  # API Gateway
+  gateway-service:
+    build:
+      context: ./gateway_service
+    container_name: opsflow-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
+      - SPRING_PROFILES_ACTIVE=docker
+    depends_on:
+      eureka-server:
+        condition: service_started
+      auth-service:
+        condition: service_started
+      org-service:
+        condition: service_started
+      document-service:
+        condition: service_started
+    networks:
+      - opsflow-network
+
+  # Auth Service
+  auth-service:
+    build:
+      context: ./auth_service
+    container_name: opsflow-auth
+    ports:
+      - "8081:8081"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-db:5432/db_opsflow
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - SPRING_JPA_PROPERTIES_HIBERNATE_DEFAULT_SCHEMA=msc_auth
+      - SPRING_DATA_REDIS_HOST=redis-cache
+      - SPRING_RABBITMQ_HOST=rabbitmq-broker
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+      redis-cache:
+        condition: service_healthy
+      rabbitmq-broker:
+        condition: service_healthy
+      eureka-server:
+        condition: service_started
+    networks:
+      - opsflow-network
+
+  # Org Service
+  org-service:
+    build:
+      context: ./org_service
+    container_name: opsflow-org
+    ports:
+      - "8082:8082"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-db:5432/db_opsflow
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - SPRING_JPA_PROPERTIES_HIBERNATE_DEFAULT_SCHEMA=msc_org
+      - SPRING_DATA_REDIS_HOST=redis-cache
+      - SPRING_RABBITMQ_HOST=rabbitmq-broker
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+      redis-cache:
+        condition: service_healthy
+      eureka-server:
+        condition: service_started
+    networks:
+      - opsflow-network
+
+  # Document Service
+  document-service:
+    build:
+      context: ./document_service
+    container_name: opsflow-document
+    ports:
+      - "8083:8083"
+    environment:
+      - SPRING_APPLICATION_NAME=document-service
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-db:5432/db_opsflow
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - SPRING_JPA_PROPERTIES_HIBERNATE_DEFAULT_SCHEMA=msc_document
+      - SPRING_DATA_REDIS_HOST=redis-cache
+      - SPRING_RABBITMQ_HOST=rabbitmq-broker
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+      redis-cache:
+        condition: service_healthy
+      rabbitmq-broker:
+        condition: service_healthy
+      eureka-server:
+        condition: service_started
+    networks:
+      - opsflow-network
+
+  # SonarQube Service
+  sonarqube:
+    image: sonarqube:lts-community
+    container_name: opsflow-sonarqube
+    depends_on:
+      - sonarqube-db
+    environment:
+      SONAR_JDBC_URL: jdbc:postgresql://sonarqube-db:5432/sonar
+      SONAR_JDBC_USERNAME: sonar
+      SONAR_JDBC_PASSWORD: sonar
+    ports:
+      - "9000:9000"
+    volumes:
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_extensions:/opt/sonarqube/extensions
+      - sonarqube_logs:/opt/sonarqube/logs
+    networks:
+      - opsflow-network
+    restart: unless-stopped
+
+  # SonarQube Database
+  sonarqube-db:
+    image: postgres:15-alpine
+    container_name: opsflow-sonarqube-db
+    environment:
+      POSTGRES_USER: sonar
+      POSTGRES_PASSWORD: sonar
+      POSTGRES_DB: sonar
+    ports:
+      - "5433:5432"
+    volumes:
+      - sonarqube_db:/var/lib/postgresql/data
+    networks:
+      - opsflow-network
+    restart: unless-stopped
+
+networks:
+  opsflow-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  sonarqube_data:
+  sonarqube_extensions:
+  sonarqube_logs:
+  sonarqube_db:
