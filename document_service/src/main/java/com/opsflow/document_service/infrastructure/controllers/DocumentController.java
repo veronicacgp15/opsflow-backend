@@ -3,10 +3,12 @@ package com.opsflow.document_service.infrastructure.controllers;
 import com.opsflow.common.JwtUtils;
 import com.opsflow.document_service.application.dtos.DocumentCreateDTO;
 import com.opsflow.document_service.application.dtos.DocumentDownload;
+import com.opsflow.document_service.application.dtos.DocumentTypeDTO;
 import com.opsflow.document_service.application.dtos.DocumentUpdateDTO;
 import com.opsflow.document_service.application.dtos.StoredFileInfo;
 import com.opsflow.document_service.application.dtos.response.MessageResponse;
 import com.opsflow.document_service.application.services.DocumentService;
+import com.opsflow.document_service.application.services.DocumentTypeService;
 import com.opsflow.document_service.domain.models.DocumentDomain;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -35,6 +37,15 @@ public class DocumentController {
 
     private final DocumentService documentService;
     private final JwtUtils jwtUtils;
+    private final DocumentTypeService documentTypeService;
+
+    @Operation(summary = "Tipos de documento activos (catalogo para formularios)",
+            description = "Usuarios que pueden crear documentos. La administracion del catalogo es solo ADMIN en /documents/types.")
+    @GetMapping("/type-catalog")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'USER')")
+    public ResponseEntity<List<DocumentTypeDTO>> listActiveDocumentTypeCatalog() {
+        return ResponseEntity.ok(documentTypeService.listActiveCatalog());
+    }
 
     @Operation(summary = "Create a new document", description = "Admin, Manager or User can create documents")
     @PostMapping(value = "/create", consumes = { "multipart/form-data" })

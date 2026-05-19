@@ -1,16 +1,16 @@
 -- =====================================================================
 -- 1. INSERTAR TIPOS DE DOCUMENTOS (Los catálogos primero)
 -- =====================================================================
-INSERT INTO document_types (id, name, description)
-VALUES (1, 'Acuerdo de Confidencialidad', 'Documento legal (NDA) para la protección de información sensible')
+INSERT INTO document_types (id, name, description, active)
+VALUES (1, 'Acuerdo de Confidencialidad', 'Documento legal (NDA) para la protección de información sensible', true)
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO document_types (id, name, description)
-VALUES (2, 'Factura Comercial', 'Registro detallado de transacciones de venta y servicios prestados')
+INSERT INTO document_types (id, name, description, active)
+VALUES (2, 'Factura Comercial', 'Registro detallado de transacciones de venta y servicios prestados', true)
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO document_types (id, name, description)
-VALUES (3, 'Política de Privacidad', 'Lineamientos sobre el tratamiento y protección de datos personales')
+INSERT INTO document_types (id, name, description, active)
+VALUES (3, 'Política de Privacidad', 'Lineamientos sobre el tratamiento y protección de datos personales', true)
 ON CONFLICT (id) DO NOTHING;
 
 -- =====================================================================

@@ -18,6 +18,13 @@ public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
+    @ExceptionHandler(DocumentTypeInUseException.class)
+    public ResponseEntity<MessageResponse> handleDocumentTypeInUse(DocumentTypeInUseException ex) {
+        log.warn("Conflict: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new MessageResponse(ex.getMessage()));
+    }
+
     @ExceptionHandler({ IllegalStateException.class, IllegalArgumentException.class })
     public ResponseEntity<MessageResponse> handleBadRequest(RuntimeException ex) {
         log.warn("Bad request: {}", ex.getMessage());
