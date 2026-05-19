@@ -10,4 +10,6 @@ import com.opsflow.document_service.infrastructure.entities.Document;
 @Repository
 public interface DocumentJpaRepository extends JpaRepository<Document, Long> {
     List<Document> findByExpirationDateLessThanEqual(LocalDate expirationDate);
+
+    boolean existsByType_Id(Long typeId);
 }
