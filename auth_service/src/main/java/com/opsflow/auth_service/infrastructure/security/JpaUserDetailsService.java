@@ -13,7 +13,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Carga el usuario para Spring Security exponiendo TANTO los nombres de rol (e.g.
@@ -33,7 +38,7 @@ import java.util.Set;
  *
  * <p>El metodo es {@code @Transactional(readOnly = true)} porque {@code Role.permissions} es
  * {@code FetchType.LAZY}; sin la sesion abierta saltaria {@code LazyInitializationException}
- * al iterar los permisos.
+ * al resolver los permisos.
  */
 @Service
 public class JpaUserDetailsService implements UserDetailsService {
@@ -50,33 +55,48 @@ public class JpaUserDetailsService implements UserDetailsService {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UsernameNotFoundException(
                         String.format("Usuario %s no existe", username)));
+        return toUserDetails(user);
+    }
 
-        // LinkedHashSet preserva orden y deduplica si dos roles comparten el mismo permiso.
-        Set<GrantedAuthority> authorities = new LinkedHashSet<>();
-        if (user.getRoles() != null) {
-            for (Role role : user.getRoles()) {
-                if (role.getName() != null) {
-                    authorities.add(new SimpleGrantedAuthority(role.getName()));
-                }
-                if (role.getPermissions() != null) {
-                    for (Permission permission : role.getPermissions()) {
-                        if (permission.getCode() != null) {
-                            authorities.add(new SimpleGrantedAuthority(permission.getCode()));
-                        }
-                    }
-                }
-            }
-        }
+    @Transactional(readOnly = true)
+    public UserDetails loadUserById(Long id) throws UsernameNotFoundException {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new UsernameNotFoundException(
+                        String.format("Usuario id=%s no existe", id)));
+        return toUserDetails(user);
+    }
 
-        boolean enabledStatus = user.getEnabled() != null ? user.getEnabled() : false;
-
+    private UserDetails toUserDetails(User user) {
         return new org.springframework.security.core.userdetails.User(
                 user.getUsername(),
                 user.getPassword(),
-                enabledStatus,
+                Boolean.TRUE.equals(user.getEnabled()),
                 true,
                 true,
                 true,
-                authorities);
+                resolveAuthorities(user));
+    }
+
+    private Set<GrantedAuthority> resolveAuthorities(User user) {
+        return Optional.ofNullable(user.getRoles())
+                .orElseGet(List::of)
+                .stream()
+                .flatMap(JpaUserDetailsService::authoritiesFromRole)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+    }
+
+    private static Stream<GrantedAuthority> authoritiesFromRole(Role role) {
+        Stream<GrantedAuthority> roleAuthority = Optional.ofNullable(role.getName())
+                .<GrantedAuthority>map(SimpleGrantedAuthority::new)
+                .stream();
+
+        Stream<GrantedAuthority> permissionAuthorities = Optional.ofNullable(role.getPermissions())
+                .orElseGet(Set::of)
+                .stream()
+                .map(Permission::getCode)
+                .filter(Objects::nonNull)
+                .<GrantedAuthority>map(SimpleGrantedAuthority::new);
+
+        return Stream.concat(roleAuthority, permissionAuthorities);
     }
 }

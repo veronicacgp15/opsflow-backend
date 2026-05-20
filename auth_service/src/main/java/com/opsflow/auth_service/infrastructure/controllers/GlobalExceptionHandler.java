@@ -49,11 +49,12 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<MessageResponse> handleRuntimeException(RuntimeException ex) {
-        if (ex.getMessage().contains("ya existe")) {
+        String message = ex.getMessage();
+        if (message != null && message.contains("ya existe")) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new MessageResponse(ex.getMessage()));
+                    .body(new MessageResponse(message));
         }
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(new MessageResponse("Error interno: " + ex.getMessage()));
+                .body(new MessageResponse(message != null ? "Error interno: " + message : "Error interno del servidor."));
     }
 }

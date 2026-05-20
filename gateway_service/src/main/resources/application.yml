@@ -4,19 +4,75 @@ spring:
   threads:
     virtual:
       enabled: true
+  data:
+    redis:
+      host: localhost
+      port: 6379
 
   cloud:
     gateway:
+      default-filters:
+        - AuthenticationGatewayFilter
       discovery:
         locator:
           enabled: true
           lower-case-service-id: true
 
       routes:
+        - id: auth-service-openapi
+          uri: lb://auth-service
+          predicates:
+            - Path=/auth/v3/api-docs, /auth/v3/api-docs/**, /auth/swagger-ui.html, /auth/swagger-ui/**
+          filters:
+            - RewritePath=/auth/(?<segment>.*), /${segment}
+
+        - id: org-service-openapi
+          uri: lb://org-service
+          predicates:
+            - Path=/org/v3/api-docs, /org/v3/api-docs/**, /org/swagger-ui.html, /org/swagger-ui/**
+          filters:
+            - RewritePath=/org/(?<segment>.*), /${segment}
+
+        - id: document-service-openapi
+          uri: lb://document-service
+          predicates:
+            - Path=/documents/v3/api-docs, /documents/v3/api-docs/**, /documents/swagger-ui.html, /documents/swagger-ui/**
+          filters:
+            - RewritePath=/documents/(?<segment>.*), /${segment}
+
+        - id: auth-public-rate-limit
+          uri: lb://auth-service
+          predicates:
+            - Path=/auth/login, /auth/signup, /auth/verify, /auth/forgot-password, /auth/reset-password, /auth/refresh
+          filters:
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 2
+                redis-rate-limiter.burstCapacity: 5
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@ipKeyResolver}"
+
         - id: auth-service
           uri: lb://auth-service
           predicates:
             - Path=/auth/**
+
+        - id: auth-legacy-public-rate-limit
+          uri: lb://auth-service
+          predicates:
+            - Path=/auth-legacy/login, /auth-legacy/signup, /auth-legacy/refresh
+          filters:
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 2
+                redis-rate-limiter.burstCapacity: 5
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@ipKeyResolver}"
+
+        - id: auth-service-legacy
+          uri: lb://auth-service
+          predicates:
+            - Path=/auth-legacy/**
 
         # AdminUserController en auth-service (@RequestMapping /users)
         - id: auth-service-users
@@ -47,3 +103,21 @@ eureka:
   instance:
     prefer-ip-address: true
     instance-id: ${spring.application.name}:${spring.cloud.client.ip-address}:${server.port}
+
+app:
+  jwt:
+    secret: =======================OpsFlowSecretKey2025BySeniorDev======================
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    path: /swagger-ui.html
+    urls:
+      - name: Auth Service (incl. /users)
+        url: /auth/v3/api-docs
+      - name: Org Service
+        url: /org/v3/api-docs
+      - name: Document Service
+        url: /documents/v3/api-docs
+    use-root-path: true
