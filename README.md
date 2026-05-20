@@ -47,6 +47,18 @@ El gateway aplica `RequestRateLimiter` (Spring Cloud Gateway + Redis) en rutas s
 
 Límite por IP: **2 peticiones/s** con ráfaga de **5** (`429 Too Many Requests` si se excede). Redis debe estar activo (`redis-cache` en Docker, puerto `6379`).
 
+### Seguridad JWT en el gateway
+
+El `gateway_service` valida el JWT en todas las rutas excepto las públicas de autenticación y documentación OpenAPI. Si el token es válido, reenvía la petición al microservicio destino con cabeceras internas:
+
+- `X-User-Id`
+- `X-Org-Id`
+- `X-User-Role`
+
+Los microservicios siguen validando el `Authorization: Bearer <token>` en `auth_service` (y sus equivalentes en org/document). El secreto JWT (`app.jwt.secret`) debe coincidir entre **gateway** y **auth_service** (módulo `common` / `JwtUtils`).
+
+Rutas públicas en el gateway (sin JWT): login, signup, verify, refresh, forgot/reset password, Swagger/OpenAPI y rutas análogas en `/auth-legacy/**`.
+
 ---
 
 ## Guía de inicio rápido
@@ -58,8 +70,10 @@ Sigue estos pasos en orden para levantar el ecosistema completo correctamente.
 Es fundamental que la base de datos `db_opsflow` y los servicios auxiliares estén operativos antes de iniciar los microservicios.
 
 ```bash
-docker-compose up -d postgres-db redis-cache rabbitmq-broker
+docker compose up -d postgres-db redis-cache rabbitmq-broker
 ```
+
+*(También válido: `docker-compose up -d ...` en instalaciones antiguas de Docker Compose.)*
 
 ### 2. Orden de ejecución de microservicios
 
@@ -69,7 +83,23 @@ docker-compose up -d postgres-db redis-cache rabbitmq-broker
 4. `document_service` en `8083`
 5. `gateway_service` en `8080`
 
-### 3. Troubleshooting rápido de puertos en Windows
+### 3. Usuarios semilla (desarrollo)
+
+Tras el primer arranque de `auth_service`, `DataInitializer` crea usuarios de prueba (contraseña **`123456`**):
+
+| Usuario | Rol | Email |
+| :--- | :--- | :--- |
+| `admin` | `ROLE_ADMIN` | `admin@opsflow.com` |
+| `manager` | `ROLE_MANAGER` | `manager@opsflow.com` |
+| `user` | `ROLE_USER` | `user@opsflow.com` |
+
+Login vía gateway: `POST http://localhost:8080/auth/login` con `{"username":"admin","password":"123456"}`.
+
+### 4. Frontend (prueba end-to-end)
+
+El cliente Angular (`opsflow-frontend`) usa el proxy `/api` → `http://localhost:8080`. Arranca con `npm run dev` en el puerto **3000** después de tener el backend operativo.
+
+### 5. Troubleshooting rápido de puertos en Windows
 
 ```bash
 # Ver el proceso que ocupa un puerto
@@ -168,6 +198,8 @@ Servicio responsable de autenticación, sesiones, usuarios, roles y permisos.
 | Obtener usuario por ID | `GET` | `/users/{id}` | `ROLE_ADMIN` |
 | Crear o invitar usuario | `POST` | `/users` | `ROLE_ADMIN` o `ROLE_MANAGER` |
 | Actualizar usuario | `PUT` | `/users/{id}` | `ROLE_ADMIN` |
+| Desasociar usuario de una organización | `PUT` | `/users/{id}` con body `{"clearOrganization": true}` | `ROLE_ADMIN` |
+| Desasociar usuario (alternativa) | `PUT` / `PATCH` | `/users/{id}/detach-organization` | `ROLE_ADMIN` |
 | Reemplazar roles del usuario | `PATCH` | `/users/{id}/roles` | `ROLE_ADMIN` |
 | Asignar o cambiar manager de una organización | `PUT` | `/users/organizations/{orgId}/manager/{userId}` | `ROLE_ADMIN` |
 | Asignar o cambiar manager de una organización | `PATCH` | `/users/organizations/{orgId}/manager/{userId}` | `ROLE_ADMIN` |
@@ -181,6 +213,11 @@ Servicio responsable de autenticación, sesiones, usuarios, roles y permisos.
 
 - `ROLE_ADMIN` puede crear usuarios para cualquier organización y con cualquier rol.
 - `ROLE_MANAGER` solo puede crear usuarios `ROLE_USER` y únicamente dentro de su propia organización.
+
+**Desasociar usuario de organización:**
+
+- Solo `ROLE_ADMIN`. Pone `organizationId` en `null`.
+- Si el usuario es el **único manager activo** de la organización, la API responde **400** con mensaje de negocio: debe designarse otro manager antes.
 
 ### 2. Org Service
 
@@ -245,9 +282,9 @@ Servicio responsable del ciclo de vida documental, versiones y descargas.
 
 | Módulo | Descripción |
 | :--- | :--- |
-| `gateway_service` | No expone endpoints de negocio propios; enruta las llamadas hacia los microservicios. |
+| `gateway_service` | Validación JWT, rate limiting, Swagger unificado y enrutado hacia microservicios. |
 | `eureka_server` | Servicio de descubrimiento y registro. |
-| `common` | Librería compartida sin controladores REST. |
+| `common` | Librería compartida (`JwtUtils`, DTOs compartidos). |
 
 ---
 
@@ -255,9 +292,13 @@ Servicio responsable del ciclo de vida documental, versiones y descargas.
 
 Accede a la documentación **solo por el gateway** (`http://localhost:8080`).
 
+**Requisitos:** `eureka_server`, `auth_service`, `org_service`, `document_service` y `gateway_service` en ejecución.
+
 ### Panel unificado (recomendado)
 
 - [http://localhost:8080/swagger-ui.html](http://localhost:8080/swagger-ui.html) — selector con Auth, Org y Document.
+
+> No uses `/swagger-ui/index.html` en el gateway (ruta incorrecta). Si lo abres por error, redirige a `/swagger-ui.html`.
 
 ### Por microservicio (vía gateway)
 
@@ -267,20 +308,32 @@ Accede a la documentación **solo por el gateway** (`http://localhost:8080`).
 | Org | [http://localhost:8080/org/swagger-ui.html](http://localhost:8080/org/swagger-ui.html) | [http://localhost:8080/org/v3/api-docs](http://localhost:8080/org/v3/api-docs) |
 | Document | [http://localhost:8080/documents/swagger-ui.html](http://localhost:8080/documents/swagger-ui.html) | [http://localhost:8080/documents/v3/api-docs](http://localhost:8080/documents/v3/api-docs) |
 
-Las rutas OpenAPI del gateway reescriben el prefijo (`/auth/...` → servicio) y no requieren JWT.
+Las rutas OpenAPI del gateway reescriben el prefijo (`/auth/...` → servicio), incluyen `webjars` y **no requieren JWT**.
+
+### Comprobación rápida
+
+1. Abre [http://localhost:8080/auth/v3/api-docs](http://localhost:8080/auth/v3/api-docs) — debe devolver JSON.
+2. Luego [http://localhost:8080/swagger-ui.html](http://localhost:8080/swagger-ui.html) — debe cargar el selector de APIs.
 
 ---
 
 ## Pruebas con Postman
 
-El repositorio incluye una colección de Postman exportada para probar los endpoints sin configurarlos manualmente.
+Archivos en la raíz de `opsflow-backend`:
+
+| Archivo | Acción |
+| :--- | :--- |
+| `OpsFlow.postman_collection.json` | **Conservar** — importar en Postman |
+| `OpsFlow.postman_environment.json` | **Conservar** — seleccionar entorno *OpsFlow Local* |
+| `init-db.sql` | **Conservar** — lo monta Docker al crear Postgres (esquemas `msc_*`) |
+| `init.sql` | **No usar** — duplicado incompleto; puede eliminarse |
 
 Recomendación de flujo:
 
-1. Ejecuta login en `/auth/login`.
-2. Copia el access token JWT.
-3. Envía el token en `Authorization: Bearer <token>`.
-4. Prueba los endpoints según el rol del usuario autenticado.
+1. Importa colección + entorno; activa *OpsFlow Local*.
+2. Ejecuta **Login** (admin / `123456`); el script guarda `token`, `refresh_token` y `userId`.
+3. Prueba endpoints según rol (también hay **Login (Manager)** y **Login (User)**).
+4. Para desasociar un usuario de su org (solo ADMIN): **Detach User From Organization** en la carpeta *User Management*.
 
 ---
 
@@ -316,5 +369,5 @@ mvn sonar:sonar -Dsonar.host.url=http://localhost:9000
 ## Limpieza de Docker
 
 ```bash
-docker-compose down -v
+docker compose down -v
 ```

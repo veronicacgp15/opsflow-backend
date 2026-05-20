@@ -2,10 +2,15 @@
   "info": {
     "_postman_id": "7f9f1d33-66cb-4dfb-a7c7-1f5e6b1c9c21",
     "name": "OpsFlow Backend API",
+    "description": "Colección para el API Gateway (puerto 8080). Usuarios semilla: admin, manager, user — contraseña 123456. Importa también OpsFlow.postman_environment.json. Tras Login, el token se guarda en variables de entorno y de colección.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
     { "key": "base_url", "value": "http://localhost:8080" },
+    { "key": "seed_password", "value": "123456" },
+    { "key": "admin_username", "value": "admin" },
+    { "key": "manager_username", "value": "manager" },
+    { "key": "user_username", "value": "user" },
     { "key": "token", "value": "" },
     { "key": "refresh_token", "value": "" },
     { "key": "userId", "value": "1" },
@@ -31,9 +36,10 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"username\": \"admin\",\n  \"email\": \"admin@opsflow.com\",\n  \"name\": \"Admin\",\n  \"lastname\": \"Root\",\n  \"password\": \"Admin123*\"\n}"
+              "raw": "{\n  \"username\": \"demo_user\",\n  \"email\": \"demo@opsflow.com\",\n  \"name\": \"Demo\",\n  \"lastname\": \"User\",\n  \"password\": \"{{seed_password}}\"\n}"
             },
-            "url": "{{base_url}}/auth/signup"
+            "url": "{{base_url}}/auth/signup",
+            "description": "Registro público. Usa un username distinto a los semilla (admin, manager, user)."
           }
         },
         {
@@ -80,10 +86,92 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"123456\"\n}"
+              "raw": "{\n  \"username\": \"{{admin_username}}\",\n  \"password\": \"{{seed_password}}\"\n}"
             },
             "url": "{{base_url}}/auth/login",
             "description": "Autentica al usuario y guarda automaticamente `token`, `refresh_token` y `userId` en variables de entorno y de coleccion."
+          }
+        },
+        {
+          "name": "Login (Manager)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Login responde 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "let jsonData = {};",
+                  "try { jsonData = pm.response.json(); } catch (e) {}",
+                  "if (jsonData.token) {",
+                  "  pm.environment.set('token', jsonData.token);",
+                  "  pm.collectionVariables.set('token', jsonData.token);",
+                  "}",
+                  "if (jsonData.refreshToken) {",
+                  "  pm.environment.set('refresh_token', jsonData.refreshToken);",
+                  "  pm.collectionVariables.set('refresh_token', jsonData.refreshToken);",
+                  "}",
+                  "if (jsonData.id) {",
+                  "  pm.environment.set('userId', String(jsonData.id));",
+                  "  pm.collectionVariables.set('userId', String(jsonData.id));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{manager_username}}\",\n  \"password\": \"{{seed_password}}\"\n}"
+            },
+            "url": "{{base_url}}/auth/login"
+          }
+        },
+        {
+          "name": "Login (User)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Login responde 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "let jsonData = {};",
+                  "try { jsonData = pm.response.json(); } catch (e) {}",
+                  "if (jsonData.token) {",
+                  "  pm.environment.set('token', jsonData.token);",
+                  "  pm.collectionVariables.set('token', jsonData.token);",
+                  "}",
+                  "if (jsonData.refreshToken) {",
+                  "  pm.environment.set('refresh_token', jsonData.refreshToken);",
+                  "  pm.collectionVariables.set('refresh_token', jsonData.refreshToken);",
+                  "}",
+                  "if (jsonData.id) {",
+                  "  pm.environment.set('userId', String(jsonData.id));",
+                  "  pm.collectionVariables.set('userId', String(jsonData.id));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{user_username}}\",\n  \"password\": \"{{seed_password}}\"\n}"
+            },
+            "url": "{{base_url}}/auth/login"
           }
         },
         {
@@ -311,7 +399,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"username\": \"user1\",\n  \"email\": \"user1@opsflow.com\",\n  \"password\": \"User123*\",\n  \"name\": \"User\",\n  \"lastname\": \"One\",\n  \"roles\": [\"ROLE_USER\"],\n  \"organizationId\": {{orgId}}\n}"
+              "raw": "{\n  \"username\": \"user1\",\n  \"email\": \"user1@opsflow.com\",\n  \"password\": \"{{seed_password}}\",\n  \"name\": \"User\",\n  \"lastname\": \"One\",\n  \"roles\": [\"ROLE_USER\"],\n  \"organizationId\": {{orgId}}\n}"
             },
             "url": "{{base_url}}/users"
           }
@@ -329,6 +417,33 @@
               "raw": "{\n  \"email\": \"user1.updated@opsflow.com\",\n  \"name\": \"User Updated\",\n  \"lastname\": \"One Updated\",\n  \"organizationId\": {{orgId}}\n}"
             },
             "url": "{{base_url}}/users/{{userId}}"
+          }
+        },
+        {
+          "name": "Detach User From Organization (clearOrganization)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clearOrganization\": true\n}"
+            },
+            "url": "{{base_url}}/users/{{userId}}",
+            "description": "Solo ROLE_ADMIN. Pone organizationId en null. Si el usuario es el unico manager activo de la org, responde 400."
+          }
+        },
+        {
+          "name": "Detach User From Organization (endpoint)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{base_url}}/users/{{userId}}/detach-organization",
+            "description": "Equivalente a PUT con clearOrganization=true. Tambien acepta PUT."
           }
         },
         {
@@ -387,7 +502,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"currentPassword\": \"123456\",\n  \"newPassword\": \"NewPass123*\"\n}"
+              "raw": "{\n  \"currentPassword\": \"{{seed_password}}\",\n  \"newPassword\": \"NewPass123*\"\n}"
             },
             "url": "{{base_url}}/users/change-password"
           }
@@ -429,7 +544,7 @@
             "header": [
               { "key": "Authorization", "value": "Bearer {{token}}" }
             ],
-            "url": "{{base_url}}/users/tools/password-hash?password=Admin123*"
+            "url": "{{base_url}}/users/tools/password-hash?password={{seed_password}}"
           }
         }
       ]
