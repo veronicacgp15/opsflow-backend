@@ -22,28 +22,31 @@ spring:
         - id: auth-service-openapi
           uri: lb://auth-service
           predicates:
-            - Path=/auth/v3/api-docs, /auth/v3/api-docs/**, /auth/swagger-ui.html, /auth/swagger-ui/**
+            - Path=/auth/v3/api-docs, /auth/v3/api-docs/**, /auth/swagger-ui.html, /auth/swagger-ui/**, /auth/webjars/**
           filters:
             - RewritePath=/auth/(?<segment>.*), /${segment}
+            - AddRequestHeader=X-Forwarded-Prefix, /auth
 
         - id: org-service-openapi
           uri: lb://org-service
           predicates:
-            - Path=/org/v3/api-docs, /org/v3/api-docs/**, /org/swagger-ui.html, /org/swagger-ui/**
+            - Path=/org/v3/api-docs, /org/v3/api-docs/**, /org/swagger-ui.html, /org/swagger-ui/**, /org/webjars/**
           filters:
             - RewritePath=/org/(?<segment>.*), /${segment}
+            - AddRequestHeader=X-Forwarded-Prefix, /org
 
         - id: document-service-openapi
           uri: lb://document-service
           predicates:
-            - Path=/documents/v3/api-docs, /documents/v3/api-docs/**, /documents/swagger-ui.html, /documents/swagger-ui/**
+            - Path=/documents/v3/api-docs, /documents/v3/api-docs/**, /documents/swagger-ui.html, /documents/swagger-ui/**, /documents/webjars/**
           filters:
             - RewritePath=/documents/(?<segment>.*), /${segment}
+            - AddRequestHeader=X-Forwarded-Prefix, /documents
 
         - id: auth-public-rate-limit
           uri: lb://auth-service
           predicates:
-            - Path=/auth/login, /auth/signup, /auth/verify, /auth/forgot-password, /auth/reset-password, /auth/refresh
+            - Path=/auth/login, /auth/signup, /auth/verify, /auth/forgot-password, /auth/reset-password, /auth/refresh, /auth/check-username
           filters:
             - name: RequestRateLimiter
               args:
@@ -113,6 +116,8 @@ springdoc:
     enabled: false
   swagger-ui:
     path: /swagger-ui.html
+    use-root-path: false
+    disable-swagger-default-url: true
     urls:
       - name: Auth Service (incl. /users)
         url: /auth/v3/api-docs
@@ -120,4 +125,3 @@ springdoc:
         url: /org/v3/api-docs
       - name: Document Service
         url: /documents/v3/api-docs
-    use-root-path: true
