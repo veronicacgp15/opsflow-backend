@@ -18,6 +18,7 @@ spring:
 
 server:
   port: 8083
+  forward-headers-strategy: framework
 
 eureka:
   client:
@@ -61,4 +62,6 @@ springdoc:
     path: /v3/api-docs
   swagger-ui:
     path: /swagger-ui.html
+    url: /documents/v3/api-docs
+    config-url: /documents/v3/api-docs/swagger-config
   show-actuator: true

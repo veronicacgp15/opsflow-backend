@@ -41,6 +41,7 @@ spring:
 
 server:
   port: 8081
+  forward-headers-strategy: framework
 
 eureka:
   client:
@@ -62,6 +63,8 @@ springdoc:
     path: /v3/api-docs
   swagger-ui:
     path: /swagger-ui.html
+    url: /auth/v3/api-docs
+    config-url: /auth/v3/api-docs/swagger-config
   show-actuator: true
 
 management:

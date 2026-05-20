@@ -104,6 +104,17 @@ public class UserController {
                 roles));
     }
 
+    @GetMapping("/check-username")
+    public ResponseEntity<UsernameAvailabilityResponse> checkUsername(
+            @RequestParam("username") String username) {
+        String normalized = username == null ? "" : username.trim();
+        if (normalized.length() < 3) {
+            return ResponseEntity.ok(new UsernameAvailabilityResponse(true));
+        }
+        boolean available = userService.findByUsername(normalized).isEmpty();
+        return ResponseEntity.ok(new UsernameAvailabilityResponse(available));
+    }
+
     @PostMapping("/signup")
     public ResponseEntity<MessageResponse> registerUser(@Valid @RequestBody SignupRequest signUpRequest) {
 
