@@ -68,7 +68,8 @@ public class SecurityConfig {
                                         "/auth/verify",
                                         "/auth/refresh",
                                         "/auth/forgot-password",
-                                        "/auth/reset-password")
+                                        "/auth/reset-password",
+                                        "/auth/check-username")
                                 .permitAll()
                         .requestMatchers("/auth/**").authenticated()
 

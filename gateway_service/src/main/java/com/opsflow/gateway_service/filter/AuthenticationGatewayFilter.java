@@ -22,17 +22,23 @@ public class AuthenticationGatewayFilter extends AbstractGatewayFilterFactory<Au
             "/auth/forgot-password",
             "/auth/reset-password",
             "/auth/refresh",
+            "/auth/check-username",
             "/auth-legacy/login",
             "/auth-legacy/signup",
             "/auth-legacy/refresh",
             "/swagger-ui",
+            "/swagger-ui.html",
+            "/webjars",
             "/v3/api-docs",
             "/auth/v3/api-docs",
             "/auth/swagger-ui",
+            "/auth/webjars",
             "/org/v3/api-docs",
             "/org/swagger-ui",
+            "/org/webjars",
             "/documents/v3/api-docs",
-            "/documents/swagger-ui"
+            "/documents/swagger-ui",
+            "/documents/webjars"
     );
 
     private final JwtUtil jwtUtil;
