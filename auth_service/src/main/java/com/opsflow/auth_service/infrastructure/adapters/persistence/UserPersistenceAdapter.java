@@ -9,6 +9,7 @@ import com.opsflow.auth_service.infrastructure.UserMapper;
 import com.opsflow.auth_service.infrastructure.repositories.UserRepository;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.StreamSupport;
@@ -83,9 +84,8 @@ public class UserPersistenceAdapter implements UserRepositoryPort {
                                 .map(roleName -> roleRepositoryPort.findByName(roleName)
                                         .orElseThrow(() -> new RuntimeException("Error: Role " + roleName + " is not found.")))
                                 .toList();
-                        existingEntity.setRoles(newRoles);
-                    } else {
-                        existingEntity.getRoles().clear();
+                        // Hibernate necesita una coleccion mutable (List.of()/toList() son inmutables).
+                        existingEntity.setRoles(new ArrayList<>(newRoles));
                     }
 
 

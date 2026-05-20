@@ -6,6 +6,7 @@ import com.opsflow.auth_service.infrastructure.entities.Role;
 import com.opsflow.auth_service.infrastructure.entities.User;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -54,7 +55,7 @@ public class UserMapper {
                     .collect(Collectors.toList());
             entity.setRoles(roles);
         } else {
-            entity.setRoles(List.of());
+            entity.setRoles(new ArrayList<>());
         }
        return entity;
     }

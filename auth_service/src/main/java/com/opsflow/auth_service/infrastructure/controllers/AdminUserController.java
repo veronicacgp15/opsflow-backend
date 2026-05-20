@@ -166,7 +166,26 @@ public class AdminUserController {
             if (request.email() != null) existing.setEmail(request.email());
             if (request.name() != null) existing.setName(request.name());
             if (request.lastname() != null) existing.setLastname(request.lastname());
-            if (request.organizationId() != null) existing.setOrganizationId(request.organizationId());
+            if (Boolean.TRUE.equals(request.clearOrganization())) {
+                existing.setOrganizationId(null);
+            } else if (request.organizationId() != null) {
+                existing.setOrganizationId(request.organizationId());
+            }
+            return userService.update(id, existing)
+                    .map(this::toResponse)
+                    .map(ResponseEntity::ok)
+                    .orElseGet(() -> ResponseEntity.notFound().build());
+        }).orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    @Operation(summary = "Desasociar usuario de su organizacion",
+            description = "Solo ADMIN. Equivalente a PUT /users/{id} con clearOrganization=true. " +
+                    "Si el usuario es manager activo, debe existir otro manager antes de desasociarlo.")
+    @RequestMapping(value = "/{id}/detach-organization", method = {RequestMethod.PUT, RequestMethod.PATCH})
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<UserAdminResponse> detachFromOrganization(@PathVariable Long id) {
+        return userService.findById(id).map(existing -> {
+            existing.setOrganizationId(null);
             return userService.update(id, existing)
                     .map(this::toResponse)
                     .map(ResponseEntity::ok)

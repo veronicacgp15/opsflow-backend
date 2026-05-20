@@ -7,5 +7,6 @@ public record UpdateUserRequest(
         @Size(max = 50) @Email String email,
         @Size(min = 2, max = 50) String name,
         @Size(min = 2, max = 50) String lastname,
-        Long organizationId
+        Long organizationId,
+        Boolean clearOrganization
 ) {}

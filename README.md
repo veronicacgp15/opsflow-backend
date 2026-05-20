@@ -19,7 +19,7 @@ OpsFlow está compuesto por los siguientes módulos:
 
 | Módulo | Puerto | Responsabilidad | Rutas principales |
 | :--- | :---: | :--- | :--- |
-| `gateway_service` | `8080` | Punto único de entrada | `/auth/**`, `/users/**`, `/org/**`, `/documents/**` |
+| `gateway_service` | `8080` | Punto único de entrada | `/auth/**`, `/auth-legacy/**`, `/users/**`, `/org/**`, `/documents/**` |
 | `auth_service` | `8081` | Autenticación, JWT, usuarios, roles y permisos | `/auth/**`, `/users/**`, `/auth-legacy/**` |
 | `org_service` | `8082` | Organizaciones y sedes | `/org/**` |
 | `document_service` | `8083` | Gestión documental, versiones y descargas | `/documents/**` |
@@ -31,11 +31,21 @@ OpsFlow está compuesto por los siguientes módulos:
 El acceso recomendado desde clientes externos es a través del gateway en `http://localhost:8080`.
 
 - `/auth/**` -> `auth_service`
+- `/auth-legacy/**` -> `auth_service`
 - `/users/**` -> `auth_service`
 - `/org/**` -> `org_service`
 - `/documents/**` -> `document_service`
 
-> **Importante:** los endpoints `/auth-legacy/**` existen en `auth_service`, pero no están publicados explícitamente por `gateway_service`. Para consumirlos debes llamar directamente al puerto `8081`.
+Todo el tráfico externo debe entrar por el gateway (`http://localhost:8080`); no expongas los puertos internos (`8081`, `8082`, etc.) a clientes.
+
+### Rate limiting (endpoints públicos de auth)
+
+El gateway aplica `RequestRateLimiter` (Spring Cloud Gateway + Redis) en rutas sensibles antes del enrutado general:
+
+- `/auth/login`, `/auth/signup`, `/auth/verify`, `/auth/forgot-password`, `/auth/reset-password`, `/auth/refresh`
+- `/auth-legacy/login`, `/auth-legacy/signup`, `/auth-legacy/refresh`
+
+Límite por IP: **2 peticiones/s** con ráfaga de **5** (`429 Too Many Requests` si se excede). Redis debe estar activo (`redis-cache` en Docker, puerto `6379`).
 
 ---
 
@@ -243,17 +253,21 @@ Servicio responsable del ciclo de vida documental, versiones y descargas.
 
 ## Swagger / OpenAPI
 
-Swagger está habilitado en los tres microservicios de negocio.
+Accede a la documentación **solo por el gateway** (`http://localhost:8080`).
 
-- **Auth Service:** [http://localhost:8081/swagger-ui.html](http://localhost:8081/swagger-ui.html)
-- **Org Service:** [http://localhost:8082/swagger-ui.html](http://localhost:8082/swagger-ui.html)
-- **Document Service:** [http://localhost:8083/swagger-ui.html](http://localhost:8083/swagger-ui.html)
+### Panel unificado (recomendado)
 
-Rutas públicas relacionadas con documentación:
+- [http://localhost:8080/swagger-ui.html](http://localhost:8080/swagger-ui.html) — selector con Auth, Org y Document.
 
-- `/v3/api-docs`
-- `/swagger-ui.html`
-- `/swagger-ui/**`
+### Por microservicio (vía gateway)
+
+| Servicio | Swagger UI | OpenAPI JSON |
+|----------|------------|--------------|
+| Auth (+ `/users`) | [http://localhost:8080/auth/swagger-ui.html](http://localhost:8080/auth/swagger-ui.html) | [http://localhost:8080/auth/v3/api-docs](http://localhost:8080/auth/v3/api-docs) |
+| Org | [http://localhost:8080/org/swagger-ui.html](http://localhost:8080/org/swagger-ui.html) | [http://localhost:8080/org/v3/api-docs](http://localhost:8080/org/v3/api-docs) |
+| Document | [http://localhost:8080/documents/swagger-ui.html](http://localhost:8080/documents/swagger-ui.html) | [http://localhost:8080/documents/v3/api-docs](http://localhost:8080/documents/v3/api-docs) |
+
+Las rutas OpenAPI del gateway reescriben el prefijo (`/auth/...` → servicio) y no requieren JWT.
 
 ---
 

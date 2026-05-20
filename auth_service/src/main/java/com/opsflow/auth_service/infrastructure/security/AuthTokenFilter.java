@@ -22,6 +22,9 @@ import java.util.Map;
 @Component
 public class AuthTokenFilter extends OncePerRequestFilter {
 
+    private static final String HEADER_USER_ID = "X-User-Id";
+    private static final String HEADER_ORG_ID = "X-Org-Id";
+
     private final JwtUtils jwtUtils;
     private final JpaUserDetailsService userDetailsService;
 
@@ -39,7 +42,7 @@ public class AuthTokenFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
-        
+
         String path = request.getServletPath();
 
         if (EXCLUDE_URLS.stream().anyMatch(path::startsWith)) {
@@ -48,29 +51,74 @@ public class AuthTokenFilter extends OncePerRequestFilter {
         }
 
         try {
-            String jwt = parseJwt(request);
-            if (jwt != null && jwtUtils.validateAccessToken(jwt)) {
-                String username = jwtUtils.getUsernameFromToken(jwt);
-
-                UserDetails userDetails = userDetailsService.loadUserByUsername(username);
-                UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(
-                                userDetails,
-                                null,
-                                userDetails.getAuthorities());
-                Map<String, Object> details = new HashMap<>();
-                details.put("webDetails", new WebAuthenticationDetailsSource().buildDetails(request));
-                details.put("organizationId", jwtUtils.getOrganizationIdFromToken(jwt));
-                details.put("userId", jwtUtils.getUserIdFromToken(jwt));
-                authentication.setDetails(details);
-
-                SecurityContextHolder.getContext().setAuthentication(authentication);
+            if (!authenticateFromBearerToken(request) && !authenticateFromGatewayHeaders(request)) {
+                logger.debug("Sin autenticacion para " + request.getMethod() + " " + path);
             }
         } catch (Exception e) {
-            logger.error("Cannot set user authentication: {}", e);
+            logger.error("Cannot set user authentication: " + e.getMessage(), e);
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    private boolean authenticateFromBearerToken(HttpServletRequest request) {
+        String jwt = parseJwt(request);
+        if (jwt == null || !jwtUtils.validateAccessToken(jwt)) {
+            return false;
+        }
+
+        String username = jwtUtils.getUsernameFromToken(jwt);
+        UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+        setSecurityContext(request, userDetails, jwtUtils.getOrganizationIdFromToken(jwt),
+                jwtUtils.getUserIdFromToken(jwt));
+        return true;
+    }
+
+
+    private boolean authenticateFromGatewayHeaders(HttpServletRequest request) {
+        String userIdHeader = request.getHeader(HEADER_USER_ID);
+        if (!StringUtils.hasText(userIdHeader)) {
+            return false;
+        }
+
+        Long userId = Long.parseLong(userIdHeader.trim());
+        UserDetails userDetails = userDetailsService.loadUserById(userId);
+
+        Long orgId = parseLongHeader(request.getHeader(HEADER_ORG_ID));
+        setSecurityContext(request, userDetails, orgId, userId);
+        return true;
+    }
+
+    private void setSecurityContext(HttpServletRequest request,
+                                    UserDetails userDetails,
+                                    Long organizationId,
+                                    Long userId) {
+        UsernamePasswordAuthenticationToken authentication =
+                new UsernamePasswordAuthenticationToken(
+                        userDetails,
+                        null,
+                        userDetails.getAuthorities());
+        Map<String, Object> details = new HashMap<>();
+        details.put("webDetails", new WebAuthenticationDetailsSource().buildDetails(request));
+        if (organizationId != null) {
+            details.put("organizationId", organizationId);
+        }
+        if (userId != null) {
+            details.put("userId", userId);
+        }
+        authentication.setDetails(details);
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+    }
+
+    private Long parseLongHeader(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        try {
+            return Long.parseLong(value.trim());
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     private String parseJwt(HttpServletRequest request) {

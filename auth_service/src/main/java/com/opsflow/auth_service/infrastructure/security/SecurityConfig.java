@@ -26,13 +26,16 @@ import java.util.Arrays;
 public class SecurityConfig {
 
     private final AuthEntryPointJwt unauthorizedHandler;
+    private final AccessDeniedHandlerJwt accessDeniedHandler;
     private final AuthTokenFilter authTokenFilter;
     private final JpaUserDetailsService userDetailsService;
 
-    public SecurityConfig(AuthEntryPointJwt unauthorizedHandler, 
+    public SecurityConfig(AuthEntryPointJwt unauthorizedHandler,
+                          AccessDeniedHandlerJwt accessDeniedHandler,
                           AuthTokenFilter authTokenFilter,
                           JpaUserDetailsService userDetailsService) {
         this.unauthorizedHandler = unauthorizedHandler;
+        this.accessDeniedHandler = accessDeniedHandler;
         this.authTokenFilter = authTokenFilter;
         this.userDetailsService = userDetailsService;
     }
@@ -68,18 +71,7 @@ public class SecurityConfig {
                                         "/auth/reset-password")
                                 .permitAll()
                         .requestMatchers("/auth/**").authenticated()
-                        // Endpoints bajo /users que NO son admin-exclusivos. La granularidad fina
-                        // la pone @PreAuthorize en cada metodo del AdminUserController:
-                        //   * /users/profiles/**       -> resolver nombre+apellido por id (batch).
-                        //                                 Lo necesita CUALQUIER usuario para ver
-                        //                                 "Subido por" / "Creado por" en las tablas.
-                        //   * /users/change-password   -> el propio usuario cambia su password.
-                        //   * /users/my-organization   -> MANAGER (o ADMIN) listando usuarios de su org.
-                        //   * POST /users              -> MANAGER puede invitar usuarios a su org
-                        //                                 (el @PreAuthorize del metodo restringe
-                        //                                  a hasAnyRole('ADMIN','MANAGER')).
-                        // Esta whitelist va ANTES del catch-all hasRole('ADMIN') para que tome
-                        // prioridad: orden importa en authorizeHttpRequests.
+
                         .requestMatchers(
                                 "/users/profiles/**",
                                 "/users/change-password",
@@ -87,9 +79,12 @@ public class SecurityConfig {
                                 "/users/by-organization/*")
                                 .authenticated()
                         .requestMatchers(HttpMethod.POST, "/users").authenticated()
-                        .requestMatchers("/users/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .requestMatchers("/users/**").authenticated()
                         .anyRequest().authenticated())
-                .exceptionHandling(exception -> exception.authenticationEntryPoint(unauthorizedHandler))
+                .exceptionHandling(exception -> exception
+                        .authenticationEntryPoint(unauthorizedHandler)
+                        .accessDeniedHandler(accessDeniedHandler))
                 .csrf(config -> config.disable())
                 .sessionManagement(management -> management.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
